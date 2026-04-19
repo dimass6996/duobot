@@ -2,16 +2,18 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import declarative_base
 import datetime
 
-# Базовый класс для моделей
 Base = declarative_base()
+
+class Dialog(Base):
+    __tablename__ = "dialogs"
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, index=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class Message(Base):
     __tablename__ = "messages"
-    
-    # Структура согласно ТЗ 
     id = Column(Integer, primary_key=True, index=True)
-    sender_id = Column(String)
-    message_text = Column(String)
-    file_path = Column(String, nullable=True)
+    dialog_code = Column(String, index=True)
+    sender = Column(String)
+    text = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
-    is_read = Column(Boolean, default=False)

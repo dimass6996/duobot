@@ -1,56 +1,140 @@
 import os
 import shutil
+import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from .models import Base, Message  # Относительный импорт для запуска из корня
+from .models import Base, Dialog, Message
+from pydantic import BaseModel
+import uuid
+from fastapi.staticfiles import StaticFiles
 
-# Настройки БД
 DATABASE_URL = "sqlite:///./chat.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+
+class DialogConnection:
+    def __init__(self, ws: WebSocket, name: str, dialog_code: str):
+        self.ws = ws
+        self.name = name
+        self.dialog_code = dialog_code
+
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.dialogs: dict[str, list[DialogConnection]] = {}
 
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
+    async def join(self, ws: WebSocket, dialog_code: str, name: str):
+        await ws.accept()
+        conn = DialogConnection(ws, name, dialog_code)
+        if dialog_code not in self.dialogs:
+            self.dialogs[dialog_code] = []
+        self.dialogs[dialog_code].append(conn)
+        return conn
 
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+    def leave(self, conn: DialogConnection):
+        if conn.dialog_code in self.dialogs:
+            self.dialogs[conn.dialog_code] = [
+                c for c in self.dialogs[conn.dialog_code] if c.ws != conn.ws
+            ]
+            if not self.dialogs[conn.dialog_code]:
+                del self.dialogs[conn.dialog_code]
 
-    async def broadcast(self, message: dict):
-        for connection in self.active_connections:
-            await connection.send_json(message)
+    async def send_to_dialog(self, dialog_code: str, message: dict):
+        if dialog_code in self.dialogs:
+            for conn in self.dialogs[dialog_code]:
+                try:
+                    await conn.ws.send_json(message)
+                except:
+                    pass
+
 
 manager = ConnectionManager()
 
-@app.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    await manager.connect(websocket)
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    conn = None
     try:
         while True:
-            data = await websocket.receive_text()
-            db = SessionLocal()
-            new_msg = Message(sender_id=user_id, message_text=data)
-            db.add(new_msg)
-            db.commit()
+            data = json.loads(await websocket.receive_text())
+            action = data.get("action")
             
-            await manager.broadcast({"sender_id": user_id, "text": data})
-            db.close()
+            if action == "join":
+                dialog_code = data.get("dialog_code", "").upper()
+                name = data.get("name", "Anon")
+                conn = await manager.join(websocket, dialog_code, name)
+                
+                db = SessionLocal()
+                existing = db.query(Dialog).filter(Dialog.code == dialog_code).first()
+                if not existing:
+                    new_dialog = Dialog(code=dialog_code)
+                    db.add(new_dialog)
+                    db.commit()
+                db.close()
+                
+            elif action == "message" and conn:
+                text = data.get("text", "")
+                sender = conn.name
+                dialog_code = conn.dialog_code
+                
+                db = SessionLocal()
+                msg = Message(dialog_code=dialog_code, sender=sender, text=text)
+                db.add(msg)
+                db.commit()
+                db.close()
+                
+                await manager.send_to_dialog(dialog_code, {
+                    "sender": sender,
+                    "text": text
+                })
+                
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        if conn:
+            manager.leave(conn)
+    except Exception as e:
+        print(f"WS error: {e}")
+        if conn:
+            manager.leave(conn)
+
+
+@app.get("/dialog/{code}")
+async def get_dialog(code: str):
+    db = SessionLocal()
+    dialog = db.query(Dialog).filter(Dialog.code == code.upper()).first()
+    messages = db.query(Message).filter(Message.dialog_code == code.upper()).all()
+    result = {
+        "dialog": {"code": dialog.code, "created_at": dialog.created_at.isoformat()} if dialog else None,
+        "messages": [{"sender": m.sender, "text": m.text, "time": m.timestamp.isoformat()} for m in messages]
+    }
+    db.close()
+    return result
+
 
 @app.post("/upload")
-async def upload_file(user_id: str, file: UploadFile = File(...)):
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+async def upload_file(file: UploadFile = File(...)):
+    file_extension = file.filename.split(".")[-1] if file.filename else "bin"
+    unique_filename = f"{uuid.uuid4()}.{file_extension}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    return {"file_path": file_path}
+    
+    return {"file_path": unique_filename}
