@@ -130,4 +130,72 @@ icon="attach_file"
 icon=ft.Icons.ATTACH_FILE
 icon=ft.Icons.COPY
 icon=ft.Icons.SEND
+icon=ft.Icons.CONTENT_COPY
+icon=ft.Icons.ARROW_BACK
+```
+
+## Padding
+
+- **USE** `ft.Padding(left, top, right, bottom)` not `ft.padding.symmetric()`
+
+```python
+# WRONG:
+padding=ft.padding.symmetric(horizontal=15, vertical=8)
+
+# CORRECT:
+padding=ft.Padding(15, 8, 15, 8)
+# or simple number for all sides:
+padding=10
+```
+
+## Border Radius
+
+- **USE** integer for rounded corners
+
+```python
+# For modern look use large values:
+border_radius=20  # smooth rounded
+border_radius=24  # card style
+```
+
+## Shadows
+
+- **USE** `ft.BoxShadow` with hex color (include alpha in color)
+
+```python
+# WRONG (opacity not available in new Flet):
+shadow=ft.BoxShadow(blur_radius=20, color="#000000", opacity=0.3)
+
+# CORRECT (use hex with alpha):
+shadow=ft.BoxShadow(blur_radius=20, color="#00000033", offset=ft.Offset(0, 4))
+# or
+shadow=ft.BoxShadow(blur_radius=8, color="#00000033", offset=ft.Offset(0, 2))
+
+# Alpha values: 00 (0%) to ff (100%) - e.g. #00000033 = ~20% opacity
+```
+
+## Colors (dark theme)
+
+```python
+COLORS = {
+    "bg": "#09090b",
+    "card_bg": "#18181b", 
+    "my_msg": "#4f46e5",
+    "their_msg": "#27272a",
+    "text": "#e5e5e5",
+    "text_secondary": "#a1a1aa",
+    "accent": "#6366f1",
+}
+```
+
+## Button Styles
+
+- **USE** `ft.ButtonStyle` with `shape`
+
+```python
+style=ft.ButtonStyle(
+    bgcolor=COLORS["accent"],
+    color="white",
+    shape=ft.RoundedRectangleBorder(radius=16),
+)
 ```
