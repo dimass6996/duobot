@@ -118,6 +118,30 @@ page.set_clipboard(text)
 page.run_clipboard(text)
 ```
 
+## Animation
+
+- **USE** `animate` parameter with duration in milliseconds
+
+```python
+# Simple animation:
+animate=300  # milliseconds
+
+# For fade in - use AnimatedSwitcher or manually after adding to page
+# Note: Animation support is limited in current Flet version
+```
+
+## Images
+
+- **USE** string for fit parameter
+
+```python
+# WRONG:
+fit=ft.ImageFit.COVER
+
+# CORRECT:
+fit="cover"
+```
+
 ## Icons
 
 - **USE** `ft.Icons.NAME` format
