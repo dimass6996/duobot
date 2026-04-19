@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+sqlalchemy
+flet
+python-multipart
+websockets
+requests

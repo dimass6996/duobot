@@ -1,0 +1,13 @@
+# База данных и медиа
+chat.db
+media/
+
+# Python
+__pycache__/
+*.py[cod]
+.env
+venv/
+
+# IDE
+.vscode/
+.idea/
