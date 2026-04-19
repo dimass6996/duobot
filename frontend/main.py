@@ -7,7 +7,8 @@ import requests
 import uuid
 
 SERVER_HOST = os.getenv("DUOCHAT_SERVER", "localhost")
-BASE_URL = f"http://{SERVER_HOST}:8000"
+SERVER_PORT = os.getenv("DUOCHAT_PORT", "8000")
+BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
 
 
 async def main(page: ft.Page):
@@ -49,7 +50,7 @@ async def main(page: ft.Page):
                 print(f"Selected: {f.path}")
 
     async def connect_ws():
-        uri = f"ws://{SERVER_HOST}:8000/ws"
+        uri = f"ws://{SERVER_HOST}:{SERVER_PORT}/ws"
         while True:
             try:
                 async with websockets.connect(uri) as websocket:

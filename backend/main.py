@@ -73,14 +73,26 @@ manager = ConnectionManager()
 async def websocket_endpoint(websocket: WebSocket):
     conn = None
     try:
+        await websocket.accept()
         while True:
-            data = json.loads(await websocket.receive_text())
+            raw = await websocket.receive_text()
+            if not raw:
+                continue
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+                
             action = data.get("action")
             
             if action == "join":
                 dialog_code = data.get("dialog_code", "").upper()
                 name = data.get("name", "Anon")
-                conn = await manager.join(websocket, dialog_code, name)
+                conn = DialogConnection(websocket, name, dialog_code)
+                
+                if dialog_code not in manager.dialogs:
+                    manager.dialogs[dialog_code] = []
+                manager.dialogs[dialog_code].append(conn)
                 
                 db = SessionLocal()
                 existing = db.query(Dialog).filter(Dialog.code == dialog_code).first()
@@ -101,18 +113,21 @@ async def websocket_endpoint(websocket: WebSocket):
                 db.commit()
                 db.close()
                 
-                await manager.send_to_dialog(dialog_code, {
-                    "sender": sender,
-                    "text": text
-                })
+                if dialog_code in manager.dialogs:
+                    for c in manager.dialogs[dialog_code]:
+                        try:
+                            await c.ws.send_json({"sender": sender, "text": text})
+                        except:
+                            pass
                 
     except WebSocketDisconnect:
         if conn:
-            manager.leave(conn)
+            if conn.dialog_code in manager.dialogs:
+                manager.dialogs[conn.dialog_code] = [c for c in manager.dialogs[conn.dialog_code] if c.ws != websocket]
     except Exception as e:
         print(f"WS error: {e}")
-        if conn:
-            manager.leave(conn)
+        if conn and conn.dialog_code in manager.dialogs:
+            manager.dialogs[conn.dialog_code] = [c for c in manager.dialogs.get(conn.dialog_code, []) if c.ws != websocket]
 
 
 @app.get("/dialog/{code}")
