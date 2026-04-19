@@ -29,6 +29,9 @@ async def main(page: ft.Page):
 
     file_picker = ft.FilePicker()
     page.services.append(file_picker)
+    
+    clipboard = ft.Clipboard()
+    page.services.append(clipboard)
 
     async def send_message():
         if state.ws and message_input.value:
@@ -71,22 +74,30 @@ async def main(page: ft.Page):
                         sender = data.get("sender", "unknown")
                         is_me = sender == state.my_name
                         
-                        chat_messages.controls.append(
-                            ft.Container(
-                                content=ft.Text(text, size=14, color="white"),
-                                bgcolor="#2563eb" if is_me else "#374151",
-                                padding=10,
-                                border_radius=12,
-                                margin=ft.margin.only(
-                                    left=50 if is_me else 0,
-                                    right=0 if is_me else 50
-                                )
-                            )
-                        )
+                        await add_message(sender, text, is_me)
                         page.update()
             except Exception as e:
                 print("WS error:", e)
                 await asyncio.sleep(3)
+
+    async def add_message(sender, text, myself=False):
+        chat_messages.controls.append(
+            ft.Container(
+                content=ft.Column([
+                    ft.Text(sender, size=10, color="gray" if not myself else "#93c5fd"),
+                    ft.Text(text, size=14, color="white")
+                ], spacing=2),
+                bgcolor="#2563eb" if myself else "#374151",
+                padding=10,
+                border_radius=12,
+                margin=ft.Margin(
+                    left=50 if myself else 0,
+                    right=0 if myself else 50,
+                    top=0,
+                    bottom=0
+                )
+            )
+        )
 
     async def show_chat():
         page.clean()
@@ -96,6 +107,12 @@ async def main(page: ft.Page):
         page.add(
             ft.AppBar(
                 title=ft.Text(f"#{state.dialog_code}", size=16),
+                actions=[
+                    ft.IconButton(
+                        icon=ft.Icons.COPY,
+                        on_click=lambda _: asyncio.create_task(clipboard.set(state.dialog_code))
+                    )
+                ],
                 bgcolor="#1f2937"
             ),
             ft.Container(content=chat_messages, expand=True, padding=5),
@@ -116,6 +133,17 @@ async def main(page: ft.Page):
             )
         )
         page.update()
+        
+        try:
+            resp = requests.get(f"{BASE_URL}/dialog/{state.dialog_code}", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                for m in data.get("messages", []):
+                    await add_message(m["sender"], m["text"], m["sender"] == state.my_name)
+                page.update()
+        except Exception as e:
+            print(f"Load history error: {e}")
+        
         asyncio.create_task(connect_ws())
 
     async def create_dialog(e):

@@ -76,16 +76,10 @@ file_picker = ft.FilePicker(on_result=upload_file)
 ```python
 # WRONG:
 alignment=ft.alignment.center
-alignment=ft.Alignment.center
 
 # CORRECT (Container):
 alignment=ft.Alignment(0, 0)  # center
-alignment="center"  # also works
-
-# CORRECT (Row/Column):
 alignment="center"
-alignment=ft.MainAxisAlignment.CENTER
-alignment=ft.CrossAxisAlignment.CENTER
 ```
 
 ## TextAlign
@@ -98,4 +92,42 @@ text_align=ft.TextAlign.CENTER
 
 # CORRECT:
 text_align="center"
+```
+
+## Margin
+
+- **USE** `ft.Margin` class, not `ft.margin.only()`
+
+```python
+# WRONG:
+margin=ft.margin.only(left=10, right=0)
+
+# CORRECT:
+margin=ft.Margin(left=10, right=0, top=0, bottom=0)
+```
+
+## Clipboard
+
+- **USE** `page.run_clipboard(text)` to copy text
+
+```python
+# WRONG:
+page.set_clipboard(text)
+
+# CORRECT:
+page.run_clipboard(text)
+```
+
+## Icons
+
+- **USE** `ft.Icons.NAME` format
+
+```python
+# WRONG:
+icon="attach_file"
+
+# CORRECT:
+icon=ft.Icons.ATTACH_FILE
+icon=ft.Icons.COPY
+icon=ft.Icons.SEND
 ```
