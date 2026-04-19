@@ -7,5 +7,6 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./chat.db:/app/chat.db
-      - ./uploads:/app/uploads
+      - ./backend/chat.db:/app/chat.db  # Чтобы база не удалялась при перезагрузке
+      - ./backend/uploads:/app/uploads  # Папка для фото/видео из ТЗ
+    restart: always
